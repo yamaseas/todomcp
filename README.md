@@ -30,6 +30,66 @@ FastMCP Server
 TodoRepository ─── SQLite
 ```
 
+## 代码运行流程
+
+```mermaid
+flowchart TD
+    Start["uv run mcp-todo-client"] --> ClientMain["client.py<br/>main() 解析 --db 参数"]
+
+    ClientMain --> DBChoice{"是否指定 --db？"}
+    DBChoice -- "是" --> PersistentDB["使用指定的持久化数据库"]
+    DBChoice -- "否" --> TempDB["创建临时目录和数据库"]
+    PersistentDB --> RunDemo["run_demo(database)"]
+    TempDB --> RunDemo
+
+    RunDemo --> SetEnv["设置环境变量<br/>MCP_TODO_DB"]
+    SetEnv --> StartServer["启动 Python 子进程<br/>python -m mcp_todo.server"]
+    StartServer --> ServerMain["server.py<br/>main()"]
+    ServerMain --> FastMCP["FastMCP Server<br/>stdio transport"]
+    RunDemo <-->|"MCP over stdio"| FastMCP
+
+    FastMCP --> Discovery["发现 MCP 能力"]
+    Discovery --> Tools["Tools"]
+    Discovery --> Resource["Resource"]
+    Discovery --> Prompt["Prompt"]
+
+    Tools --> AddTool["add_todo"]
+    Tools --> ListTool["list_todos"]
+    Tools --> CompleteTool["complete_todo"]
+    Tools --> DeleteTool["delete_todo"]
+    Resource --> StatsResource["todo://stats"]
+    Prompt --> DailyReview["daily_review<br/>生成任务回顾提示词"]
+
+    AddTool --> GetRepo["get_repository()"]
+    ListTool --> GetRepo
+    CompleteTool --> GetRepo
+    DeleteTool --> GetRepo
+    StatsResource --> GetRepo
+
+    GetRepo --> DBPath{"是否设置 MCP_TODO_DB？"}
+    DBPath -- "是" --> EnvDB["使用环境变量指定路径"]
+    DBPath -- "否" --> DefaultDB["使用 data/todos.db"]
+    EnvDB --> Repository["repository.py<br/>TodoRepository"]
+    DefaultDB --> Repository
+
+    Repository --> InitDB["创建父目录并初始化 todos 表"]
+    InitDB --> SQLite[("SQLite 数据库")]
+    Repository --> CRUD["add / list / complete / delete / stats"]
+    CRUD <--> SQLite
+    SQLite --> Models["Pydantic 模型<br/>Todo / TodoStats"]
+    Models --> MCPResult["结构化 MCP 响应"]
+    MCPResult --> RunDemo
+    RunDemo --> Output["终端输出演示结果"]
+
+    Invalid["非法参数"] --> Validation["FastMCP Schema 校验"]
+    Validation --> ProtocolError["MCP 协议错误"]
+    Missing["空标题或不存在的 todo_id"] --> BusinessError["Repository 抛出 ValueError"]
+```
+
+代码按职责分为三层：`client.py` 负责启动 Server 和演示 MCP 调用，`server.py`
+负责将 Tool、Resource、Prompt 转换为业务调用，`repository.py` 负责业务规则和
+SQLite 持久化。其中 `daily_review` 只生成提示词，不访问数据库。
+
 ## 快速开始
 
 需要 Python 3.10+ 和 [uv](https://docs.astral.sh/uv/)。
