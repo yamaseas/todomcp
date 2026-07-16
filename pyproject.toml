@@ -10,6 +10,7 @@ dependencies = [
 
 [project.scripts]
 mcp-todo-server = "mcp_todo.server:main"
+mcp-todo-http = "mcp_todo.server:http_main"
 mcp-todo-client = "mcp_todo.client:main"
 
 [dependency-groups]
@@ -27,4 +28,3 @@ packages = ["src/mcp_todo"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-
